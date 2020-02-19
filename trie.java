@@ -46,26 +46,43 @@ public class trie {
         }
     }
 
-    void traversTrie(){
-        StringBuilder prefix = new StringBuilder();
+    //void traversTrie(){
+        //StringBuilder prefix = new StringBuilder();
         
         //traversTrieHelper(head, prefix, 0);
-    }
+    //}
 
     //method to traverse a trie like pre order visiting every node and saving every word in helper.
-    void traversTrieHelper(trieNode node, StringBuilder prefix, int level, StringBuilder helper){
+    void traversTrieHelper(trieNode node, StringBuilder prefix, int level, StringBuilder helper, int flag, int counter, int length){
 
-        if(node.isWord == true){
-            prefix.delete(level, prefix.length());
-            helper.append(prefix.toString());
-            helper.append("!");
-        }
-
-        for(int i = 0; i < 26; i++){
-            if(node.children[i] != null){
-                prefix.insert(level, getChar(i));
-                traversTrieHelper(node.children[i], prefix, level + 1, helper);
+        if(flag == 1){ //wordsOfprefix
+            if(node.isWord == true){
+                prefix.delete(level, prefix.length());
+                helper.append(prefix.toString());
+                helper.append("!");
             }
+
+            for(int i = 0; i < 26; i++){
+                if(node.children[i] != null){
+                    prefix.insert(level, getChar(i));
+                    traversTrieHelper(node.children[i], prefix, level + 1, helper, flag, counter, length);
+                }
+            }
+        }
+        else if(flag == 0){ //differBy
+            if(node.isWord == true){
+                prefix.delete(level, prefix.length());
+                if(prefix.length() == length){
+                    helper.append(prefix.toString());
+                }
+            }
+
+            for(int i = 0; i < 26; i++){
+                if(node.children[i] != null){
+                    prefix.insert(level, getChar(i));
+                    traversTrieHelper(node.children[i], prefix, level + 1, helper, flag, counter, length);
+                }
+            } 
         }
     }
 
@@ -152,7 +169,46 @@ public class trie {
 
     //returns words with the same length with "word" that differ by one letter.
     String[] differByOne(String word){
+        int i, j, size;
+        int diff = 0;
+        StringBuilder helper = new StringBuilder();
+        StringBuilder prefix = new StringBuilder();
 
+        traversTrieHelper(head, prefix, 0, helper, 0, 0, word.length());
+
+        String Words = helper.toString();
+
+        size = (helper.length()/word.length());
+
+        String[] testArray = new String[size];
+        for(i = 0; i < size; i++){
+            testArray[i] = Words.substring(0, word.length());
+            Words = Words.substring(word.length());
+        }
+
+        StringBuilder returnStr = new StringBuilder();
+        for(i = 0; i < size; i++){
+            diff = 0;
+            String tester = testArray[i];
+            for(j = 0; j < word.length(); j++){
+                if(tester.charAt(j) != word.charAt(j)){
+                    diff++;
+                }
+            }
+            if(diff == 1){
+                returnStr.append(testArray[i]);
+            }
+        }
+        size = (returnStr.length()/word.length());
+        Words = returnStr.toString();
+
+        String[] returnArray = new String[size];
+        for(i = 0; i < size; i++){
+            returnArray[i] = Words.substring(0, word.length());
+            Words = Words.substring(word.length());
+        }
+
+        return(returnArray);
     }
 
 /*
@@ -185,8 +241,9 @@ public class trie {
         StringBuilder sb = new StringBuilder(prefix);
         StringBuilder helper = new StringBuilder("");
         String[] returnArray = new String[words];
-
-        traversTrieHelper(curr, sb, prefix.length(), helper);
+        
+        //flag = 1 if this method is called by wordsOfprefix and zero if it is called by differByOne.
+        traversTrieHelper(curr, sb, prefix.length(), helper, 1, 0, 0);
 
         String Words = new String();
         Words = helper.toString();
@@ -222,7 +279,7 @@ public class trie {
 
         String[] word = Utilities.readFile("test3.txt");
        
-        for(i = 0; i < 8; i++){
+        for(i = 0; i < 13; i++){
             retVal = Trie.add(word[i]);
         }
 
@@ -230,9 +287,14 @@ public class trie {
 
         System.out.println(Trie);
 
-        String[] arrayPrefix = Trie.wordsOfprefix("sm");
+        // String[] arrayPrefix = Trie.wordsOfprefix("sm");
         
-        for(String element: arrayPrefix){
+        // for(String element: arrayPrefix){
+        //     System.out.println(element);
+        // }
+        String[] arrayDiffer = Trie.differByOne("body");
+
+        for(String element: arrayDiffer){
             System.out.println(element);
         }
     }
