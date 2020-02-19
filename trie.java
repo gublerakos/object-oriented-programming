@@ -3,7 +3,6 @@
  */
 
 import ce326.hw1.Utilities;
-//import java.util.Scanner; 
 import java.lang.StringBuilder;
 
 public class trie {
@@ -18,6 +17,81 @@ public class trie {
         counter = 0;
     }
 
+    //HELPERS
+
+    void preOrder(trieNode curr, String prefix, StringBuilder helper){
+
+        if(curr == null){
+            return;
+        }
+
+        for(int i = 0; i < 26; i++){
+            if(curr.children[i] != null){
+                trieNode node = curr.children[i];
+                if(node.isWord == false){
+                    prefix = prefix + " ";
+                    prefix = prefix + getChar(i);
+                    preOrder(node, prefix, helper);
+                    prefix = prefix.substring(0, 0);
+                }
+                else if(node.isWord == true){
+                    prefix = prefix + " ";
+                    prefix = prefix + getChar(i);
+                    helper.append(prefix.concat("!"));
+                    prefix = prefix.substring(0, 0);
+                    preOrder(node, prefix, helper);
+                    
+                }
+            }
+        }
+    }
+
+    void traversTrie(){
+        StringBuilder prefix = new StringBuilder();
+        
+        //traversTrieHelper(head, prefix, 0);
+    }
+
+    //method to traverse a trie like pre order visiting every node and saving every word in helper.
+    void traversTrieHelper(trieNode node, StringBuilder prefix, int level, StringBuilder helper){
+
+        if(node.isWord == true){
+            prefix.delete(level, prefix.length());
+            helper.append(prefix.toString());
+            helper.append("!");
+        }
+
+        for(int i = 0; i < 26; i++){
+            if(node.children[i] != null){
+                prefix.insert(level, getChar(i));
+                traversTrieHelper(node.children[i], prefix, level + 1, helper);
+            }
+        }
+    }
+
+    //returns number of words in the structure, given the head node.
+    int numOfWords(trieNode head){
+        int result = 0;
+
+        if(head.isWord == true){
+            result++;
+        }
+
+        for(int i = 0; i < 26; i++){
+            if(head.children[i] != null){
+                result = result + numOfWords(head.children[i]);
+            }
+        }
+
+        return result;
+    }
+
+    //returns a character related to an array position
+    char getChar(int pos){
+        char c = (char) (pos + 97);
+        return c;
+    }
+
     //METHODS
 
 
@@ -26,7 +100,6 @@ public class trie {
         trieNode curr = head;
         char c;
         int pos;
-        // boolean retVal = true;
 
         //check if "word" already exists.
         if(contains(word)){
@@ -69,122 +142,34 @@ public class trie {
         return((curr != null) && (curr.isWord == true));
     }
 
-
-    //returns number of words in the structure, given the head node.
-    int numOfWords(trieNode head){
-        int result = 0;
-
-        if(head.isWord == true){
-            result++;
-        }
-
-        for(int i = 0; i < 26; i++){
-            if(head.children[i] != null){
-                result = result + numOfWords(head.children[i]);
-            }
-        }
-
-        return result;
-    }
     //returns number of words in the trie.
     int size() {
         return(counter);
     }
 
-    char getChar(int pos){
-        char c = (char) (pos + 97);
-        return c;
-    }
 
-/*
+
+
     //returns words with the same length with "word" that differ by one letter.
     String[] differByOne(String word){
 
     }
 
-
+/*
     //returns words with the same length with "word" that differ by "max" letters.
     String[] differBy(String word, int max){
 
     }
 
 */
-    void preOrder(trieNode curr, StringBuilder prefix, StringBuilder helper, StringBuilder arrayWords){
-
-        if(curr == null){
-            return;
-        }
-
-        for(int i = 0; i < 26; i++){
-            if(curr.children[i] != null){
-                trieNode node = curr.children[i];
-                if(node.isWord == false){
-                    helper.append(" ");
-                    helper.append(getChar(i));
-                    prefix.append(getChar(i));
-                    preOrder(node, prefix, helper, arrayWords);
-                }
-                else if(node.isWord == true){
-                    helper.append(" ");
-                    helper.append(getChar(i));
-                    helper.append("!");
-                    prefix.append(getChar(i));
-                    arrayWords.append(helper);
-                    preOrder(node, prefix, helper, arrayWords);
-                    
-                }
-                prefix.deleteCharAt(prefix.length() - 1);
-            }
-        }
-    }
-    
-    // arrayWords.append(prefix);
-    public String toString() {
-        StringBuilder returner = new StringBuilder();
-        String str = new String();
-
-        traversTrieHelper(head, "", 0, returner);
-        str = returner.toString();
-
-        return (str);
-    }
-
-    void traversTrie(){
-        StringBuilder words = new StringBuilder();
-        
-        traversTrieHelper(head, "", 0, words);
-    }
-
-    void traversTrieHelper(trieNode node, String prefix, int level, StringBuilder returner){
-
-        if(node.isWord == true){
-            //prefix.delete(level, prefix.length());
-            returner.append(prefix.concat("!"));
-            return;
-            //System.out.println(prefix.toString());
-        }
-
-        for(int i = 0; i < 26; i++){
-            if(node.children[i] != null){
-                prefix = prefix + getChar(i);
-                //prefix.insert(level, getChar(i));
-                traversTrieHelper(node.children[i], prefix, level + 1, returner);
-                prefix = prefix.substring(0, prefix.length()-1);
-            }
-        }
-    }
-
-
-
-
 
     //returns words with the same "prefix".
     String[] wordsOfprefix(String prefix){
-        
+        int i, index;
         trieNode curr = head;
 
         //check if that prefix exists in the trie.
-        for(int i = 0; i < prefix.length(); i++){
+        for(i = 0; i < prefix.length(); i++){
             char c = prefix.charAt(i);
             int pos = c - 'a';
             if(curr.children[pos] == null){
@@ -195,57 +180,61 @@ public class trie {
             }
         }
         //right here i am sure there are words with that prefix.
-        //trieNode node = curr;
         int words = numOfWords(curr);
-        System.out.println(words);
 
-        //StringBuilder sb = new StringBuilder(prefix);
-        //System.out.println(sb.toString());
-        //traversTrieHelper(node, "", prefix.length(), sb);
-
+        StringBuilder sb = new StringBuilder(prefix);
+        StringBuilder helper = new StringBuilder("");
         String[] returnArray = new String[words];
+
+        traversTrieHelper(curr, sb, prefix.length(), helper);
+
+        String Words = new String();
+        Words = helper.toString();
+
+        for(i = 0; i < words; i++){
+            index = Words.indexOf("!");
+            returnArray[i] = Words.substring(0, index);
+            Words = Words.substring(index + 1);
+        }
 
         return(returnArray);
     }
 
+    public String toString() {
+        StringBuilder helper = new StringBuilder();
+        String str = new String();
+
+        preOrder(head, "", helper);
+        str = helper.toString();
+
+        return(str);
+    }
+
+    // String toDotDtring(){
+
+    // }
 
     //MAIN
     public static void main(String[] args) {
-
+        int i;
         trie Trie = new trie();
         boolean retVal;
 
-        String[] word = Utilities.readFile("test.txt");
+        String[] word = Utilities.readFile("test3.txt");
        
-        for(int i = 0; i < 9; i++){
+        for(i = 0; i < 8; i++){
             retVal = Trie.add(word[i]);
         }
 
-        retVal = Trie.contains("small");
-        //System.out.println(retVal);
-
         int size = Trie.size();
-        System.out.println(size);
 
-        //String[] wordsPrefix = Trie.wordsOfprefix("small");
-
-        StringBuilder prefix = new StringBuilder("");
-        StringBuilder helper = new StringBuilder("");
-
-        StringBuilder arrayWords = new StringBuilder();
-        
-        Trie.preOrder(head, prefix, helper, arrayWords);
         System.out.println(Trie);
-        //System.out.println(arrayWords.toString());
 
-        // for(String element: arrayWords){
-        //     System.out.println(element);
-        // }
+        String[] arrayPrefix = Trie.wordsOfprefix("sm");
         
-        //Trie.traversTrie();
-
-        // retVal = Util.dot2png("out");
-        // System.out.println(retVal);
+        for(String element: arrayPrefix){
+            System.out.println(element);
+        }
     }
     
 }
