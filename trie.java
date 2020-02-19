@@ -46,14 +46,8 @@ public class trie {
         }
     }
 
-    //void traversTrie(){
-        //StringBuilder prefix = new StringBuilder();
-        
-        //traversTrieHelper(head, prefix, 0);
-    //}
-
     //method to traverse a trie like pre order visiting every node and saving every word in helper.
-    void traversTrieHelper(trieNode node, StringBuilder prefix, int level, StringBuilder helper, int flag, int counter, int length){
+    void traversTrieHelper(trieNode node, StringBuilder prefix, int level, StringBuilder helper, int flag, int length){
 
         if(flag == 1){ //wordsOfprefix
             if(node.isWord == true){
@@ -65,11 +59,11 @@ public class trie {
             for(int i = 0; i < 26; i++){
                 if(node.children[i] != null){
                     prefix.insert(level, getChar(i));
-                    traversTrieHelper(node.children[i], prefix, level + 1, helper, flag, counter, length);
+                    traversTrieHelper(node.children[i], prefix, level + 1, helper, flag, length);
                 }
             }
         }
-        else if(flag == 0){ //differBy
+        else if(flag == 0){ //differByOne
             if(node.isWord == true){
                 prefix.delete(level, prefix.length());
                 if(prefix.length() == length){
@@ -80,7 +74,7 @@ public class trie {
             for(int i = 0; i < 26; i++){
                 if(node.children[i] != null){
                     prefix.insert(level, getChar(i));
-                    traversTrieHelper(node.children[i], prefix, level + 1, helper, flag, counter, length);
+                    traversTrieHelper(node.children[i], prefix, level + 1, helper, flag, length);
                 }
             } 
         }
@@ -164,17 +158,24 @@ public class trie {
         return(counter);
     }
 
-
-
-
     //returns words with the same length with "word" that differ by one letter.
     String[] differByOne(String word){
-        int i, j, size;
-        int diff = 0;
+
+        String[] returnArray = differBy(word, 1);
+
+        return(returnArray);
+    }
+
+
+    //returns words with the same length with "word" that differ by "max" letters.
+    String[] differBy(String word, int max){
+        int size, i, j;
+        int diff;
+
         StringBuilder helper = new StringBuilder();
         StringBuilder prefix = new StringBuilder();
 
-        traversTrieHelper(head, prefix, 0, helper, 0, 0, word.length());
+        traversTrieHelper(head, prefix, 0, helper, 0, word.length());
 
         String Words = helper.toString();
 
@@ -195,7 +196,7 @@ public class trie {
                     diff++;
                 }
             }
-            if(diff == 1){
+            if((diff <= max) && (diff != 0)){
                 returnStr.append(testArray[i]);
             }
         }
@@ -211,13 +212,7 @@ public class trie {
         return(returnArray);
     }
 
-/*
-    //returns words with the same length with "word" that differ by "max" letters.
-    String[] differBy(String word, int max){
 
-    }
-
-*/
 
     //returns words with the same "prefix".
     String[] wordsOfprefix(String prefix){
@@ -243,7 +238,7 @@ public class trie {
         String[] returnArray = new String[words];
         
         //flag = 1 if this method is called by wordsOfprefix and zero if it is called by differByOne.
-        traversTrieHelper(curr, sb, prefix.length(), helper, 1, 0, 0);
+        traversTrieHelper(curr, sb, prefix.length(), helper, 1, 0);
 
         String Words = new String();
         Words = helper.toString();
@@ -293,10 +288,19 @@ public class trie {
         //     System.out.println(element);
         // }
         String[] arrayDiffer = Trie.differByOne("body");
+        System.out.println("Words that differ by one letter with word body are:");
 
         for(String element: arrayDiffer){
             System.out.println(element);
         }
+
+        String[] arrayDiffer2 = Trie.differBy("small", 4);
+        System.out.println("Words that differ up to 4 letters with word small are:");
+
+        for(String element: arrayDiffer2){
+            System.out.println(element);
+        }
+
     }
     
 }
