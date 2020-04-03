@@ -1,5 +1,3 @@
-//package ce326.hw2;
-
 import java.io.*;
 import javax.swing.*;
 import javax.swing.filechooser.*;

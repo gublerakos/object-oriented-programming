@@ -1,3 +1,5 @@
+package ce326.hw2;
+
 public interface Image {
 
     public void grayscale();
