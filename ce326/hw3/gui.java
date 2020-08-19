@@ -1,5 +1,7 @@
 import java.awt.*;
 import java.io.*;
+import java.net.URI;
+
 import javax.swing.event.*;
 import javax.swing.*;
 import javax.xml.parsers.*;
@@ -25,30 +27,42 @@ import org.w3c.dom.*;
 
 /**
  *
- * @author gublerakos
+ * @author mpantazi
  */
 public class gui extends javax.swing.JFrame {
 
-    // JPopupMenu popup;
     String home = new String(System.getProperty("user.home"));
     String lastPath = new String();
     File copyFile;
     boolean copyFlag = false;
-
     File cutFile;
     boolean cutFlag = false;
-
+    boolean windows = false;
+    boolean linux = false;
     JLabel clickedlabel = new JLabel(lastPath);
     List<String> result = new ArrayList<String>();
     String type;
     String key;
-
+    String separator = new String(System.getProperty("file.separator"));
+    String xmlPath = new String(home + separator + ".java-file-browser/properties.xml");
+    String iconsPath = new String((System.getProperty("user.dir")) + separator + "icons");
+    boolean homeRemoved = false;
+    boolean opened = false;
     /**
      * Creates new form gui
      */
     public gui() {
-        // first of all read the XML file(if it exists) to specify favoutrites.
+    	String system = new String(System.getProperty("os.name"));
+    	if(system.contains("Windows")){
+    		windows = true;
+    	}
+    	else{
+    		linux = true;
+    	}
+
         initComponents();
+        // home in favourites before anything.
+        favHome();
 
         // scroll for filesPanel.
         scrollPanel.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
@@ -59,14 +73,11 @@ public class gui extends javax.swing.JFrame {
         jScrollPane1.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 
         filesPanel.setLayout(new WrapLayout(FlowLayout.LEFT));
-
         BoxLayout boxlayout = new BoxLayout(favouritesPanel, BoxLayout.Y_AXIS);
-
         favouritesPanel.setLayout(boxlayout);
-
-        // favouritesPanel.setAlignmentY(Component.CENTER_ALIGNMENT);
         breadcrumb.setLayout(new BoxLayout(breadcrumb, BoxLayout.X_AXIS));
 
+        // first of all read the XML file(if it exists) to specify favoutrites.
         readXMLFile();
 
         searchPanel.setVisible(false);
@@ -88,26 +99,28 @@ public class gui extends javax.swing.JFrame {
                             String type = new String();
                             String text = new String(searchText.getText());
 
-                            System.out.println("Search button pressed");
-
-                            keyword = text.substring(0, text.lastIndexOf(" "));
-
-                            type = text.substring(text.lastIndexOf(" ") + 1, text.length());
-                            System.out.println("Keyword = " + keyword);
-                            System.out.println("Type = " + type);
-
-                            // RECURSIVE SEARCH FUNCTION CALL
+                            if(text.contains(" ")){
+                                keyword = text.substring(0, text.lastIndexOf(" "));
+                                type = text.substring(text.lastIndexOf(" ") + 1, text.length());
+                            }
+                            else{
+                                keyword = text;
+                                type = "";
+                            }
+                            //Recursive search function call to look for keyword inside every director, starting from home.
                             searchKeyword(keyword, type);
 
                         }
                     });
-                } else if (searchText.isVisible() == true) {
+                } 
+                //The second time I click search button, search panel(textfield and button), disappears and opens home directory.
+                else if (searchText.isVisible() == true) {
                     searchPanel.setVisible(false);
                     searchText.setVisible(false);
 
                     filesPanel.removeAll();
                     filesPanel.revalidate();
-
+                    scrollPanel.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
                     filesPanel.setLayout(new WrapLayout(FlowLayout.LEFT));
                     SwingUtilities.updateComponentTreeUI(gui.this);
                     openDirectory(home);
@@ -154,6 +167,7 @@ public class gui extends javax.swing.JFrame {
 
         paste.addActionListener(mouseListenerEdit);
         paste.setActionCommand("paste");
+        paste.setEnabled(false);
 
         rename.addActionListener(mouseListenerEdit);
         rename.setActionCommand("rename");
@@ -167,9 +181,56 @@ public class gui extends javax.swing.JFrame {
         properties.addActionListener(mouseListenerEdit);
         properties.setActionCommand("properties");
 
+        //Workspace initialized.
         openDirectory(home);
     }
 
+    //Method that adds Home directory in favouritesPanel. 
+    public void favHome(){
+
+        JButton favourite = new JButton("Home");
+        favouritesPanel.add(favourite);
+
+        favourite.addMouseListener(new MouseListener() {
+            public void mouseClicked(MouseEvent event) {
+                if (event.getButton() == MouseEvent.BUTTON3) {
+                    JPopupMenu fav = new JPopupMenu("Remove From Favourites");
+                    JMenuItem remove = new JMenuItem("Remove From Favourites");
+                    remove.addActionListener(new ActionListener() {
+                        @Override
+                        public void actionPerformed(ActionEvent event) {
+                            favouritesPanel.removeAll();
+                            favouritesPanel.revalidate();
+                            homeRemoved = true;
+                            readXMLFile();
+                            SwingUtilities.updateComponentTreeUI(gui.this);
+                        }
+                    });
+                    fav.add(remove);
+                    fav.show(event.getComponent(), 25, 25);
+                    repaint();
+                }
+            }
+        });
+
+        favourite.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+
+                try {
+                    filesPanel.removeAll();
+                    filesPanel.revalidate();
+                    openDirectory(home);
+                    SwingUtilities.updateComponentTreeUI(gui.this);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+            }
+        });
+    }
+
+    //Method called when search button is pressed, 
     public void searchKeyword(String key, String type) {
 
         File homeFile = new File(home);
@@ -179,49 +240,64 @@ public class gui extends javax.swing.JFrame {
         search(homeFile);
 
         int count = result.size();
-        if (count == 0) {
-            System.out.println("\nNo result found!");
-        } else {
-            System.out.println("\nFound " + count + " result!\n");
-            for (String matched : result) {
-                System.out.println("Found : " + matched);
+        //If results found, workspace with files turns into a vertical list of buttons with links to wanted path.
+        if(count > 0){
+            JButton[] searchedFiles = new JButton[result.size()];
+
+            filesPanel.removeAll();
+            filesPanel.revalidate();
+            scrollPanel.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+            BoxLayout boxlayout = new BoxLayout(filesPanel, BoxLayout.Y_AXIS);
+            filesPanel.setLayout(boxlayout);
+            SwingUtilities.updateComponentTreeUI(gui.this);
+            for (int i = 0; i < result.size(); i++) {
+                searchedFiles[i] = new JButton(result.get(i));
+                if ((new File(searchedFiles[i].getText())).isDirectory()) {
+                    searchedFiles[i].setActionCommand(searchedFiles[i].getText());
+                    searchedFiles[i].addActionListener(new ActionListenerTest());
+                } else {
+                    searchedFiles[i].setActionCommand(searchedFiles[i].getText());
+                    searchedFiles[i].addActionListener(new ActionListenerFile());
+                }
+                filesPanel.add(searchedFiles[i]);
             }
+            result.clear();
         }
+        //Else if no results found, modal box shows up.
+        else{
+            JFrame window = new JFrame();
+            JDialog d = new JDialog(window, "Search", true);
+            d.setLayout(new FlowLayout());
 
-        JButton[] searchedFiles = new JButton[result.size()];
+            Button close = new Button("OK");
+            close.addActionListener(new ActionListener() {
+                public void actionPerformed(ActionEvent e) {
+                    d.setVisible(false);
+                }
+            });
 
-        filesPanel.removeAll();
-        filesPanel.revalidate();
+            d.add(new Label("No result found!"));
+            d.add(close);
 
-        BoxLayout boxlayout = new BoxLayout(filesPanel, BoxLayout.Y_AXIS);
-        filesPanel.setLayout(boxlayout);
-        SwingUtilities.updateComponentTreeUI(gui.this);
-        for (int i = 0; i < result.size(); i++) {
-            searchedFiles[i] = new JButton(result.get(i));
-            if ((new File(searchedFiles[i].getText())).isDirectory()) {
-                searchedFiles[i].setActionCommand(searchedFiles[i].getText());
-                searchedFiles[i].addActionListener(new ActionListenerTest());
-            } else {
-                searchedFiles[i].setActionCommand(searchedFiles[i].getText());
-                searchedFiles[i].addActionListener(new ActionListenerFile());
-            }
-            filesPanel.add(searchedFiles[i]);
+            d.pack();
+            d.setVisible(true);
         }
-        result.clear();
     }
 
+    //Listener to open files.
     class ActionListenerFile implements ActionListener {
 
         @Override
         public void actionPerformed(ActionEvent event) {
             try {
+                Desktop desktop = Desktop.getDesktop();
+                File file = new File(event.getActionCommand());
                 if (!Desktop.isDesktopSupported()) {
-                    System.out.println("Desktop is not supported");
+                    desktop.edit(file);
                     return;
                 }
-                File file = new File(event.getActionCommand());
-                Desktop desktop = Desktop.getDesktop();
                 desktop.open(file);
+               
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -229,65 +305,73 @@ public class gui extends javax.swing.JFrame {
         }
     }
 
+    // Recursive function for searching, by checking if the name of a directory/file with given "type" contains "keyword". If "type" is dir, searches only for directories.
     public void search(File file) {
-
         if (!type.equals("dir")) {
             if (file.isDirectory()) {
-                // do you have permission to read this directory?
-                if (file.canRead()) {
-                    for (File temp : file.listFiles()) {
-                        if (temp.isDirectory()) {
-                            search(temp);
-                        } else {
-                            if (((temp.getName()).toLowerCase()).contains(key)
-                                    && (((temp.getName()).toLowerCase()).contains(type))) {
-                                result.add(temp.getAbsolutePath());
-                            }
-                        }
-                    }
-                } else {
-                    System.out.println(file.getAbsoluteFile() + "Permission Denied");
-                }
+                //Check for size and read permission of directory to search.
+            	if(file.length() > 0){
+	                if (file.canRead()) {
+	                	if(file.listFiles() != null){
+		                    for (File temp : file.listFiles()) {
+		                    	if(temp != null){
+			                        if (temp.isDirectory()) {
+			                            search(temp);
+			                        } else {
+			                            if (((temp.getName()).toLowerCase()).contains(key)
+			                                    && (((temp.getName()).toLowerCase()).contains(type))) {
+			                                result.add(temp.getAbsolutePath());
+			                            }
+			                        }
+			                    }
+		                    }
+		                }
+	                } 
+				}
             }
-        } else if (type.equals("dir")) {
+        } 
+        else if (type.equals("dir")) {
             if (file.isDirectory()) {
-                if (file.canRead()) {
-                    for (File temp : file.listFiles()) {
-                        if (temp.isDirectory()) {
-                            if (((temp.getName()).toLowerCase()).contains(key)) {
-                                result.add(temp.getAbsolutePath());
-                                search(temp);
-                            }
-                        }
-                    }
-                }
+            	if(file.length() > 0){
+	                if (file.canRead()) {
+	                	if(file.listFiles() != null){
+		                    for (File temp : file.listFiles()) {
+		                    	if(temp != null){
+			                        if (temp.isDirectory()) {
+			                            if (((temp.getName()).toLowerCase()).contains(key)) {
+			                                result.add(temp.getAbsolutePath());
+			                                search(temp);
+			                            }
+			                        }
+			                    }
+		                    }
+	                	}
+	                }
+	            }
             }
         }
-
     }
 
     public class ActionListenerEdit implements ActionListener {
 
         @Override
         public void actionPerformed(ActionEvent event) {
-            // System.out.println(clickedlabel.getText());
-
             if (event.getActionCommand() == "cut") {
                 cutFlag = true;
-                cutFile = new File(lastPath + "/" + clickedlabel.getText());
+                cutFile = new File(lastPath + separator + clickedlabel.getText());
+                paste.setEnabled(true);
             }
             if (event.getActionCommand() == "copy") {
                 copyFlag = true;
-                copyFile = new File(lastPath + "/" + clickedlabel.getText());
+                copyFile = new File(lastPath + separator + clickedlabel.getText());
+                paste.setEnabled(true);
             }
             if (event.getActionCommand() == "paste") {
                 if (copyFlag) {
                     File pasteFile = new File(
-                            lastPath + "/" + clickedlabel.getText() + "/" + findName(copyFile.getName()));
-                    System.out.println(copyFile);
-                    System.out.println(pasteFile);
+                            lastPath + separator + clickedlabel.getText() + separator + findName(copyFile.getName()));
                     if (pasteFile.exists()) {
-                        // directory already exists.WARNING modal shows up.
+                        //Directory already exists.WARNING modal shows up.
                         JFrame window = new JFrame();
                         JDialog d = new JDialog(window, "Alert", true);
                         d.setLayout(new FlowLayout());
@@ -297,14 +381,12 @@ public class gui extends javax.swing.JFrame {
                         yes.addActionListener(new ActionListener() {
                             public void actionPerformed(ActionEvent e) {
                                 d.setVisible(false);
-                                System.out.println(copyFile);
-                                System.out.println(pasteFile);
                                 copyFolder(copyFile, pasteFile);
                             }
                         });
                         no.addActionListener(new ActionListener() {
                             public void actionPerformed(ActionEvent e) {
-                                // Hide dialog
+                                //Hide dialog
                                 d.setVisible(false);
                                 return;
                             }
@@ -322,6 +404,7 @@ public class gui extends javax.swing.JFrame {
                     }
 
                     copyFlag = false;
+                    paste.setEnabled(false);
 
                     filesPanel.removeAll();
                     filesPanel.revalidate();
@@ -329,10 +412,9 @@ public class gui extends javax.swing.JFrame {
                     openDirectory(lastPath);
                 } else if (cutFlag) {
                     File pasteFile = new File(
-                            lastPath + "/" + clickedlabel.getText() + "/" + findName(cutFile.getName()));
+                            lastPath + separator + clickedlabel.getText() + separator + findName(cutFile.getName()));
                     if (pasteFile.exists()) {
-                        // System.out.println(pasteFile);
-                        // directory already exists.WARNING modal shows up.
+                        //Directory already exists.WARNING modal shows up.
                         JFrame window = new JFrame();
                         JDialog d = new JDialog(window, "Alert", true);
                         d.setLayout(new FlowLayout());
@@ -341,12 +423,13 @@ public class gui extends javax.swing.JFrame {
                         Button no = new Button("NO");
                         yes.addActionListener(new ActionListener() {
                             public void actionPerformed(ActionEvent e) {
+                            	d.setVisible(false);
                                 copyFolder(cutFile, pasteFile);
                             }
                         });
                         no.addActionListener(new ActionListener() {
                             public void actionPerformed(ActionEvent e) {
-                                // Hide dialog
+                                //Hide dialog
                                 d.setVisible(false);
                                 return;
                             }
@@ -356,7 +439,7 @@ public class gui extends javax.swing.JFrame {
                         d.add(yes);
                         d.add(no);
 
-                        // Show dialog
+                        //Show dialog
                         d.pack();
                         d.setVisible(true);
                     } else {
@@ -364,7 +447,7 @@ public class gui extends javax.swing.JFrame {
                     }
 
                     cutFlag = false;
-
+                    paste.setEnabled(false);
                     // File copied, now deleting it from previous directory to finish cut option.
                     deleteDirectory(cutFile);
 
@@ -373,126 +456,130 @@ public class gui extends javax.swing.JFrame {
                     clickedlabel.setText(findName(lastPath));
                     openDirectory(lastPath);
                 } else {
-                    System.out.println("Nothing to paste!");
+                    paste.setEnabled(false);
                 }
             }
             if (event.getActionCommand() == "rename") {
                 File dir = new File(lastPath);
-                File renameFile = new File(lastPath + "/" + clickedlabel.getText());
+                File renameFile = new File(lastPath + separator + clickedlabel.getText());
 
                 File files[] = dir.listFiles();
-                for (File element : files) {
-                    if (renameFile.equals(element)) {
-                        JFrame window = new JFrame();
+                if(files != null){
+	                for (File element : files) {
+	                    if (renameFile.equals(element)) {
+	                        JFrame window = new JFrame();
 
-                        JDialog d = new JDialog(window, "Type the new name you want!", true);
+	                        JDialog d = new JDialog(window, "Type the new name you want!", true);
 
-                        d.setLayout(new FlowLayout());
+	                        d.setLayout(new FlowLayout());
 
-                        JTextField newName = new JTextField(30);
-                        newName.setText(clickedlabel.getText());
-                        Button rename = new Button("Rename!");
+	                        JTextField newName = new JTextField(30);
+	                        newName.setText(clickedlabel.getText());
+	                        Button rename = new Button("Rename!");
 
-                        rename.addActionListener(new ActionListener() {
-                            public void actionPerformed(ActionEvent e) {
-                                // Hide dialog
-                                d.setVisible(false);
+	                        rename.addActionListener(new ActionListener() {
+	                            public void actionPerformed(ActionEvent e) {
+	                                // Hide dialog
+	                                d.setVisible(false);
 
-                                File newFile = new File(lastPath + "/" + newName.getText());
-                                System.out.println(newName.getText());
-                                renameFile.renameTo(newFile);
+	                                File newFile = new File(lastPath +separator + newName.getText());
+	                                renameFile.renameTo(newFile);
 
-                                filesPanel.removeAll();
-                                filesPanel.revalidate();
-                                openDirectory(lastPath);
-                            }
-                        });
+	                                filesPanel.removeAll();
+	                                filesPanel.revalidate();
+	                                openDirectory(lastPath);
+	                            }
+	                        });
 
-                        d.add(newName);
-                        d.add(rename);
+	                        d.add(newName);
+	                        d.add(rename);
 
-                        // Show dialog
-                        d.pack();
-                        d.setVisible(true);
-                    }
-                }
-
+	                        // Show dialog
+	                        d.pack();
+	                        d.setVisible(true);
+	                    }
+	                }
+	            }
                 filesPanel.revalidate();
             }
             if (event.getActionCommand() == "delete") {
                 File dir = new File(lastPath);
-                File deleteFile = new File(lastPath + "/" + clickedlabel.getText());
+                File deleteFile = new File(lastPath + separator + clickedlabel.getText());
 
                 File files[] = dir.listFiles();
+                if(files != null){
+	                for (File element : files) {
+	                    if (deleteFile.equals(element)) {
 
-                for (File element : files) {
-                    if (deleteFile.equals(element)) {
+	                        JFrame window = new JFrame();
+	                        JDialog d = new JDialog(window, "Alert", true);
+	                        d.setLayout(new FlowLayout());
 
-                        JFrame window = new JFrame();
-                        JDialog d = new JDialog(window, "Alert", true);
-                        d.setLayout(new FlowLayout());
+	                        Button yes = new Button("YES");
+	                        Button no = new Button("NO");
+	                        yes.addActionListener(new ActionListener() {
+	                            public void actionPerformed(ActionEvent e) {
+	                                // Hide dialog
+	                                d.setVisible(false);
 
-                        // Create an OK button
-                        Button yes = new Button("YES");
-                        Button no = new Button("NO");
-                        yes.addActionListener(new ActionListener() {
-                            public void actionPerformed(ActionEvent e) {
-                                // Hide dialog
-                                d.setVisible(false);
+	                                if (!deleteFile.isDirectory()) {
+	                                    deleteFile.delete();
+	                                } else {
+	                                    deleteDirectory(deleteFile);
+	                                }
 
-                                if (!deleteFile.isDirectory()) {
-                                    deleteFile.delete();
-                                } else {
-                                    deleteDirectory(deleteFile);
-                                }
+	                                filesPanel.removeAll();
+	                                filesPanel.revalidate();
+	                                openDirectory(lastPath);
+	                            }
+	                        });
 
-                                filesPanel.removeAll();
-                                filesPanel.revalidate();
-                                openDirectory(lastPath);
-                            }
-                        });
+	                        no.addActionListener(new ActionListener() {
+	                            public void actionPerformed(ActionEvent e) {
+	                                // Hide dialog
+	                                d.setVisible(false);
+	                            }
+	                        });
 
-                        no.addActionListener(new ActionListener() {
-                            public void actionPerformed(ActionEvent e) {
-                                // Hide dialog
-                                d.setVisible(false);
-                            }
-                        });
+	                        d.add(new Label("Are you sure you want to delete it?"));
+	                        d.add(yes);
+	                        d.add(no);
 
-                        d.add(new Label("Are you sure you want to delete it?"));
-                        d.add(yes);
-                        d.add(no);
-
-                        // Show dialog
-                        d.pack();
-                        d.setVisible(true);
-                    }
-                }
+	                        // Show dialog
+	                        d.pack();
+	                        d.setVisible(true);
+	                    }
+	                }
+	            }
             }
             if (event.getActionCommand() == "properties") {
+                String propPath = new String();
+                if(opened){
+                    propPath = lastPath;
+                }
+                else{
+                    propPath = lastPath + separator + clickedlabel.getText();
+                }
+
                 JFrame window = new JFrame();
                 JDialog d = new JDialog(window, "Properties", true);
                 d.setLayout(new GridLayout(4, 1));
-                // System.out.println(clickedlabel.getText());
-                // JLabel label = new JLabel(clickedlabel.getText());
                 d.add(new Label("Name: " + clickedlabel.getText() + "\n"));
-                d.add(new Label("Path: " + lastPath + "/" + clickedlabel.getText()));
-                d.add(new Label("Size: " + findSize(lastPath + "/" + clickedlabel.getText())));
+                d.add(new Label("Path: " + propPath));
+                d.add(new Label("Size: " + findSize(propPath)));
 
                 JPanel p = new JPanel();
                 p.setLayout(new FlowLayout());
-                JCheckBox read = new JCheckBox("Read", findStateRead(lastPath + "/" + clickedlabel.getText()));
-                JCheckBox write = new JCheckBox("Write", findStateWrite(lastPath + "/" + clickedlabel.getText()));
+                JCheckBox read = new JCheckBox("Read", findStateRead(propPath));
+                JCheckBox write = new JCheckBox("Write", findStateWrite(propPath));
                 JCheckBox excecute = new JCheckBox("Excecute",
-                        findStateExcecute(lastPath + "/" + clickedlabel.getText()));
+                        findStateExcecute(propPath));
 
-                File file = new File(lastPath + "/" + clickedlabel.getText());
+                File file = new File(propPath);
 
                 try {
-                    System.out.println(System.getProperty("user.name"));
-                    System.out.println(getFileOwner(lastPath + "/" + clickedlabel.getText()));
                     if (!System.getProperty("user.name")
-                            .equals(getFileOwner(lastPath + "/" + clickedlabel.getText()))) {
+                            .equals(findName(getFileOwner(propPath)))){
                         read.setEnabled(false);
                         write.setEnabled(false);
                         excecute.setEnabled(false);
@@ -554,24 +641,27 @@ public class gui extends javax.swing.JFrame {
 
             if (event.getActionCommand() == "addToFavourites") {
 
-                System.out.println(clickedlabel.getText());
-
                 try {
-                    File file = new File(lastPath + "/" + clickedlabel.getText());
-                    if (!file.isDirectory()) {
-                        System.out.println("Not a directory!");
-                        // pop up menu
-                    } else {
-                        String favouritePath = new String(lastPath + "/" + clickedlabel.getText());
-                        if(findInXML(clickedlabel.getText())){
-                            System.out.println(clickedlabel.getText() + " is already in favourites!");
-                        }
-                        else{
+                    File dir = new File(home + separator + ".java-file-browser");
+                    if(!dir.exists()){
+                        dir.mkdir();
+                    }
+                    File prop = new File(xmlPath);
+                    if(!prop.exists()){
+                        prop.createNewFile();
+                        xmlFileInit();
+                    }
+
+                    File file = new File(lastPath + separator + clickedlabel.getText());
+                    if (file.isDirectory()) {
+                        String favouritePath = new String(lastPath + separator + clickedlabel.getText());
+                        if (!findInXML(clickedlabel.getText())) {
                             addToXMLFile(clickedlabel.getText(), favouritePath);
                             favouritesInit(clickedlabel.getText());
                         }
-                    favouritesPanel.revalidate();
+                        favouritesPanel.revalidate();
                     }
+
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -621,20 +711,21 @@ public class gui extends javax.swing.JFrame {
             directory.add(file.getAbsolutePath());
             while (directory.size() > 0) {
                 String folderPath = directory.get(0);
-                // System.out.println("Size of this :"+folderPath);
                 directory.remove(0);
                 File folder = new File(folderPath);
                 File[] filesInFolder = folder.listFiles();
-                int noOfFiles = filesInFolder.length;
 
-                for (int i = 0; i < noOfFiles; i++) {
-                    File f = filesInFolder[i];
-                    if (f.isDirectory()) {
-                        directory.add(f.getAbsolutePath());
-                    } else {
-                        totalSize += f.length();
-                    }
-                }
+                if(filesInFolder != null){
+                	int noOfFiles = filesInFolder.length;
+	                for (int i = 0; i < noOfFiles; i++) {
+	                    File f = filesInFolder[i];
+	                    if (f.isDirectory()) {
+	                        directory.add(f.getAbsolutePath());
+	                    } else {
+	                        totalSize += f.length();
+	                    }
+	                }
+	            }
             }
         } else {
             totalSize = file.length();
@@ -645,6 +736,8 @@ public class gui extends javax.swing.JFrame {
     public void openDirectory(String filepath) {
 
         ActionListenerTest actionEar = new ActionListenerTest();
+        
+        opened = true;
 
         // Define breadcrumb.
         if (lastPath != null) {
@@ -653,10 +746,10 @@ public class gui extends javax.swing.JFrame {
         }
 
         lastPath = filepath;
-        // System.out.println(filepath);
+        // clickedlabel.setText(findName(lastPath));
         for (int j = 0; j < filepath.length(); j++) {
             char c = filepath.charAt(j);
-            if (c == '/') {
+            if (c == (this.separator).charAt(0)) {
                 if (j == 0) {
                     JLabel separator = new JLabel(">");
                     breadcrumb.add(separator);
@@ -664,11 +757,10 @@ public class gui extends javax.swing.JFrame {
                 } else {
                     String helper = new String(filepath.substring(0, j));
 
-                    String folderName = new String(helper.substring(helper.lastIndexOf("/") + 1));
+                    String folderName = new String(helper.substring(helper.lastIndexOf((this.separator).charAt(0)) + 1));
 
                     JButton folder = new JButton(folderName);
                     folder.setActionCommand(helper);
-                    // System.out.println(helper);
                     folder.addActionListener(actionEar);
 
                     breadcrumb.add(folder);
@@ -676,7 +768,7 @@ public class gui extends javax.swing.JFrame {
                     breadcrumb.add(separator);
 
                     helper = filepath.substring(j + 1, filepath.length());
-                    if (helper.lastIndexOf("/") == -1) {
+                    if (helper.lastIndexOf((this.separator).charAt(0)) == -1) {
                         JButton curr = new JButton(helper);
                         curr.setActionCommand(filepath);
                         curr.addActionListener(actionEar);
@@ -692,58 +784,64 @@ public class gui extends javax.swing.JFrame {
         List<File> directories = new ArrayList<File>();
         List<File> notDirectories = new ArrayList<File>();
 
-        for(File element: files){
-            if(element.isDirectory()){
-                directories.add(element);
-            }
-            else{
-                notDirectories.add(element);
-            }
-        }
 
-        Collections.sort(directories, new Comparator<File>(){
-            public int compare(File f1, File f2){
-                return ((f1.getName()).toLowerCase()).compareTo(((f2.getName()).toLowerCase()));
-            } });
-        Collections.sort(notDirectories, new Comparator<File>(){
-            public int compare(File f1, File f2){
-                return ((f1.getName()).toLowerCase()).compareTo(((f2.getName()).toLowerCase()));
-            } });
+        if(dir.length() > 0){
+        	if(files != null){
+		        for(File element: files){
+		            if(element.isDirectory()){
+		                directories.add(element);
+		            }
+		            else{
+		                notDirectories.add(element);
+		            }
+		        }
+                //Sort two lists alphabetiacally.
+		        Collections.sort(directories, new Comparator<File>(){
+		            public int compare(File f1, File f2){
+		                return ((f1.getName()).toLowerCase()).compareTo(((f2.getName()).toLowerCase()));
+		            } });
+		        Collections.sort(notDirectories, new Comparator<File>(){
+		            public int compare(File f1, File f2){
+		                return ((f1.getName()).toLowerCase()).compareTo(((f2.getName()).toLowerCase()));
+		            } });
 
-        JLabel[] directoryLabels = new JLabel[directories.size()];
-        JLabel[] fileLabels = new JLabel[notDirectories.size()];
-        MouseListener mouseListener = new MouseListener();
-        
-        for(int i = 0; i < directories.size(); i++){
-            directoryLabels[i] = new JLabel((directories.get(i)).getName());
-            directoryLabels[i].setPreferredSize(new Dimension(65, 90));
-            directoryLabels[i].setToolTipText(directoryLabels[i].getText());
-            if(directories.get(i).isHidden()){
-                directoryLabels[i].setVisible(false);
-            }
-            else{
-                directoryLabels[i].setVisible(true);
-                directoryLabels[i].addMouseListener(mouseListener);
-            }
-            selectIcon(directories.get(i), directoryLabels[i]);
-            filesPanel.add(directoryLabels[i]);
-        }
+		        JLabel[] directoryLabels = new JLabel[directories.size()];
+		        JLabel[] fileLabels = new JLabel[notDirectories.size()];
+		        MouseListener mouseListener = new MouseListener();
+		        
+		        for(int i = 0; i < directories.size(); i++){
+		            directoryLabels[i] = new JLabel((directories.get(i)).getName());
+		            directoryLabels[i].setPreferredSize(new Dimension(65, 90));
+		            directoryLabels[i].setToolTipText(directoryLabels[i].getText());
+		            if(directories.get(i).isHidden()){
+		                directoryLabels[i].setVisible(false);
+		            }
+		            else{
+		                directoryLabels[i].setVisible(true);
+		                directoryLabels[i].addMouseListener(mouseListener);
+		            }
+		            selectIcon(directories.get(i), directoryLabels[i]);
+		            filesPanel.add(directoryLabels[i]);
+		        }
 
-        for(int i = 0; i < notDirectories.size(); i++){
-            fileLabels[i] = new JLabel((notDirectories.get(i)).getName());
-            fileLabels[i].setPreferredSize(new Dimension(110, 90));
-            if(notDirectories.get(i).isHidden()){
-                fileLabels[i].setVisible(false);
-            }
-            else{
-                fileLabels[i].setVisible(true);
-                fileLabels[i].addMouseListener(mouseListener);
-            }
-            selectIcon(notDirectories.get(i), fileLabels[i]);
-            filesPanel.add(fileLabels[i]);
-        }
-        directories.clear();
-        notDirectories.clear();
+		        for(int i = 0; i < notDirectories.size(); i++){
+                    fileLabels[i] = new JLabel((notDirectories.get(i)).getName());
+                    //Set preferred size for folders to be aligned, full name appears as tooltip text.
+		            fileLabels[i].setPreferredSize(new Dimension(110, 90));
+		            if(notDirectories.get(i).isHidden()){
+		                fileLabels[i].setVisible(false);
+		            }
+		            else{
+		                fileLabels[i].setVisible(true);
+		                fileLabels[i].addMouseListener(mouseListener);
+		            }
+		            selectIcon(notDirectories.get(i), fileLabels[i]);
+		            filesPanel.add(fileLabels[i]);
+		        }
+		        directories.clear();
+		        notDirectories.clear();
+		    }
+		}	
     }
 
     class MouseListener extends MouseAdapter {
@@ -755,26 +853,19 @@ public class gui extends javax.swing.JFrame {
         }
 
         public void mousePressed(MouseEvent e) {
-            // maybeShowPopup(e);
         }
 
         public void mouseReleased(MouseEvent e) {
-            // maybeShowPopup(e);
         }
-
-        // private void maybeShowPopup(MouseEvent e) {
-        // if (e.isPopupTrigger()) {
-        // popup.show(e.getComponent(),e.getX(), e.getY());
-        // }
-        // }
 
         public void mouseClicked(MouseEvent event) {
             if (event.getButton() == MouseEvent.BUTTON1) {
+                //MouseEvent occured by single click, pink frame appears.
                 if (event.getClickCount() == 1) {
-                    // System.out.println("Single left click!");
                     JLabel label = (JLabel) event.getSource();
 
                     clickedlabel = label;
+                    opened = false;
 
                     background = label.getBackground();
                     label.setBackground(new Color(255, 229, 241));
@@ -787,63 +878,57 @@ public class gui extends javax.swing.JFrame {
 
                     labelOld = label;
                 }
-
+                //MouseEvent occured by double click, if source was a directory, it oppens, else if it was a file, it runs it.
                 if (event.getClickCount() == 2) {
-                    // System.out.println("Double left click!");
                     JLabel labelClicked = (JLabel) event.getSource();
 
                     File fileClicked = new File(lastPath);
 
                     File folder[] = fileClicked.listFiles();
+                    if(folder != null){
+	                    for (File element : folder) {
+	                        if (element.getName().equals(labelClicked.getText())) {
+	                            if (element.isDirectory()) {
+	                                String newPath = new String(lastPath + separator + labelClicked.getText());
 
-                    for (File element : folder) {
-                        if (element.getName().equals(labelClicked.getText())) {
+	                                filesPanel.removeAll();
+	                                filesPanel.revalidate();
 
-                            if (element.isDirectory()) {
-                                System.out.println(element.getName() + " is a directory!");
-                                String newPath = new String(lastPath + "/" + labelClicked.getText());
+	                                openDirectory(newPath);
+	                            } else {
+	                                if (!element.isDirectory()) {
+	                                    try {
+	                                        if (!Desktop.isDesktopSupported()) {
+	                                            return;
+	                                        }
 
-                                filesPanel.removeAll();
-                                filesPanel.revalidate();
+	                                        Desktop desktop = Desktop.getDesktop();
+	                                        desktop.open(element);
+	                                    } catch (IOException e) {
+	                                        e.printStackTrace();
+	                                    }
 
-                                openDirectory(newPath);
-                            } else {
-                                System.out.println(element.getName() + " is a file!");
-
-                                if (!element.isDirectory()) {
-                                    try {
-                                        if (!Desktop.isDesktopSupported()) {
-                                            System.out.println("Desktop is not supported");
-                                            return;
-                                        }
-
-                                        Desktop desktop = Desktop.getDesktop();
-                                        desktop.open(element);
-                                    } catch (IOException e) {
-                                        e.printStackTrace();
-                                    }
-
-                                }
-                            }
-                        }
-                    }
+	                                }
+	                            }
+	                        }
+	                    }
+	                }
                     SwingUtilities.updateComponentTreeUI(gui.this);
                 }
             }
+            //MouseEvent occured by right click on a selected label, pop up edit menu shows up.
             if (event.getButton() == MouseEvent.BUTTON3) {
                 Color selectColor = new Color(255, 229, 241);
                 JLabel label = (JLabel) event.getSource();
 
                 if (label.getBackground().equals(selectColor)) {
                     JPopupMenu options = new JPopupMenu("Edit");
-                    // System.out.println("popup");
 
                     JMenuItem cutPop = new JMenuItem("Cut");
                     cutPop.setActionCommand(label.getText());
                     cutPop.addActionListener(new CutListener());
 
                     JMenuItem copyPop = new JMenuItem("Copy");
-                    System.out.println(label.getText());
                     copyPop.setActionCommand(label.getText());
                     copyPop.addActionListener(new CopyListener());
 
@@ -887,13 +972,7 @@ public class gui extends javax.swing.JFrame {
         public void actionPerformed(ActionEvent actionEvent) {
 
             cutFlag = true;
-
-            System.out.println("Selected: Cut");
-            // System.out.println("action" + actionEvent.getActionCommand());
-
-            cutFile = new File(lastPath + "/" + actionEvent.getActionCommand());
-
-            System.out.println("file's path to cut = " + cutFile);
+            cutFile = new File(lastPath + separator + actionEvent.getActionCommand());
         }
     }
 
@@ -902,14 +981,7 @@ public class gui extends javax.swing.JFrame {
         public void actionPerformed(ActionEvent actionEvent) {
 
             copyFlag = true;
-
-            System.out.println("Selected: Copy");
-            System.out.println(actionEvent.getActionCommand());
-
-            copyFile = new File(lastPath + "/" + actionEvent.getActionCommand());
-
-            System.out.println("file's path to copy = " + copyFile);
-
+            copyFile = new File(lastPath + separator + actionEvent.getActionCommand());
         }
     }
 
@@ -918,7 +990,6 @@ public class gui extends javax.swing.JFrame {
         if (sourceFolder.isDirectory()) {
             if (!destinationFolder.exists()) {
                 destinationFolder.mkdir();
-                System.out.println("Directory created :: " + destinationFolder);
             }
             String files[] = sourceFolder.list();
 
@@ -938,20 +1009,15 @@ public class gui extends javax.swing.JFrame {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            // System.out.println("File copied: " + destinationFolder);
         }
     }
 
     class PasteListener implements ActionListener {
 
         public void actionPerformed(ActionEvent actionEvent) {
-            System.out.println("Selected: Paste");
-            System.out.println(actionEvent.getActionCommand());
-
             if (copyFlag) {
                 File pasteFile = new File(
-                        lastPath + "/" + actionEvent.getActionCommand() + "/" + findName(copyFile.getName()));
-                System.out.println(pasteFile);
+                        lastPath + separator + actionEvent.getActionCommand() + separator + findName(copyFile.getName()));
 
                 if (pasteFile.exists()) {
                     // directory already exists.WARNING modal shows up.
@@ -964,8 +1030,6 @@ public class gui extends javax.swing.JFrame {
                     yes.addActionListener(new ActionListener() {
                         public void actionPerformed(ActionEvent e) {
                             d.setVisible(false);
-                            System.out.println(copyFile);
-                            System.out.println(pasteFile);
                             copyFolder(copyFile, pasteFile);
                         }
                     });
@@ -995,10 +1059,9 @@ public class gui extends javax.swing.JFrame {
                 openDirectory(lastPath);
             } else if (cutFlag) {
                 File pasteFile = new File(
-                        lastPath + "/" + actionEvent.getActionCommand() + "/" + findName(cutFile.getName()));
+                        lastPath + separator + actionEvent.getActionCommand() + separator + findName(cutFile.getName()));
 
                 if (pasteFile.exists()) {
-                    // System.out.println(pasteFile);
                     // directory already exists.WARNING modal shows up.
                     JFrame window = new JFrame();
                     JDialog d = new JDialog(window, "Alert", true);
@@ -1008,6 +1071,7 @@ public class gui extends javax.swing.JFrame {
                     Button no = new Button("NO");
                     yes.addActionListener(new ActionListener() {
                         public void actionPerformed(ActionEvent e) {
+                            d.setVisible(false);
                             copyFolder(cutFile, pasteFile);
                         }
                     });
@@ -1031,16 +1095,12 @@ public class gui extends javax.swing.JFrame {
                 }
 
                 cutFlag = false;
-
                 // File copied, now deleting it from previous directory to finish cut option.
                 deleteDirectory(cutFile);
 
                 filesPanel.removeAll();
                 filesPanel.revalidate();
-                System.out.println(lastPath);
                 openDirectory(lastPath);
-            } else {
-                System.out.println("Nothing to paste!");
             }
         }
     }
@@ -1048,59 +1108,50 @@ public class gui extends javax.swing.JFrame {
     // Method to find the name of a directory/file given the path.
     public String findName(String path) {
         String name = new String();
-
-        name = path.substring(path.lastIndexOf("/") + 1, path.length());
-        // System.out.println(name);
-
+        name = path.substring(path.lastIndexOf(separator) + 1, path.length());
         return name;
     }
 
     class RenameListener implements ActionListener {
 
         public void actionPerformed(ActionEvent actionEvent) {
-            System.out.println("Selected: Rename");
-            System.out.println(actionEvent.getActionCommand());
-
             File dir = new File(lastPath);
-            File renameFile = new File(lastPath + "/" + actionEvent.getActionCommand());
+            File renameFile = new File(lastPath + separator + actionEvent.getActionCommand());
 
-            // System.out.println(deleteFile);
             File files[] = dir.listFiles();
-            for (File element : files) {
-                if (renameFile.equals(element)) {
-                    JFrame window = new JFrame();
+            if(files != null){
+	            for (File element : files) {
+	                if (renameFile.equals(element)) {
+	                    JFrame window = new JFrame();
+	                    JDialog d = new JDialog(window, "Type the new name you want!", true);
+	                    d.setLayout(new FlowLayout());
 
-                    JDialog d = new JDialog(window, "Type the new name you want!", true);
+	                    JTextField newName = new JTextField(30);
+	                    newName.setText(actionEvent.getActionCommand());
+	                    Button rename = new Button("Rename!");
 
-                    d.setLayout(new FlowLayout());
+	                    rename.addActionListener(new ActionListener() {
+	                        public void actionPerformed(ActionEvent e) {
+	                            // Hide dialog
+	                            d.setVisible(false);
 
-                    JTextField newName = new JTextField(30);
-                    newName.setText(actionEvent.getActionCommand());
-                    Button rename = new Button("Rename!");
+	                            File newFile = new File(lastPath + separator + newName.getText());
+	                            renameFile.renameTo(newFile);
 
-                    rename.addActionListener(new ActionListener() {
-                        public void actionPerformed(ActionEvent e) {
-                            // Hide dialog
-                            d.setVisible(false);
+	                            filesPanel.removeAll();
+	                            filesPanel.revalidate();
+	                            openDirectory(lastPath);
+	                        }
+	                    });
+	                    d.add(newName);
+	                    d.add(rename);
 
-                            File newFile = new File(lastPath + "/" + newName.getText());
-                            System.out.println(newName.getText());
-                            renameFile.renameTo(newFile);
-
-                            filesPanel.removeAll();
-                            filesPanel.revalidate();
-                            openDirectory(lastPath);
-                        }
-                    });
-                    // d.add(new Label ("Type the new name you want!"));
-                    d.add(newName);
-                    d.add(rename);
-
-                    // Show dialog
-                    d.pack();
-                    d.setVisible(true);
-                }
-            }
+	                    // Show dialog
+	                    d.pack();
+	                    d.setVisible(true);
+	                }
+	            }
+	        }
 
             filesPanel.revalidate();
         }
@@ -1109,64 +1160,57 @@ public class gui extends javax.swing.JFrame {
     class DeleteListener implements ActionListener {
 
         public void actionPerformed(ActionEvent actionEvent) {
-            System.out.println("Selected: Delete");
-            // System.out.println(actionEvent.getActionCommand());
-
             File dir = new File(lastPath);
-            File deleteFile = new File(lastPath + "/" + actionEvent.getActionCommand());
+            File deleteFile = new File(lastPath + separator + actionEvent.getActionCommand());
 
-            // System.out.println(deleteFile);
             File files[] = dir.listFiles();
+            if(files != null){
+	            for (File element : files) {
+	                if (deleteFile.equals(element)) {
+	                    JFrame window = new JFrame();
+	                    JDialog d = new JDialog(window, "Alert", true);
+	                    d.setLayout(new FlowLayout());
 
-            for (File element : files) {
-                if (deleteFile.equals(element)) {
+	                    // Create an OK button
+	                    Button yes = new Button("YES");
+	                    Button no = new Button("NO");
+	                    yes.addActionListener(new ActionListener() {
+	                        public void actionPerformed(ActionEvent e) {
+	                            // Hide dialog
+	                            d.setVisible(false);
+	                            if (!deleteFile.isDirectory()) {
+	                                deleteFile.delete();
+	                            } else {
+	                                deleteDirectory(deleteFile);
+	                            }
 
-                    // System.out.println("geia");
+	                            filesPanel.removeAll();
+	                            filesPanel.revalidate();
+	                            openDirectory(lastPath);
+	                        }
+	                    });
 
-                    JFrame window = new JFrame();
-                    JDialog d = new JDialog(window, "Alert", true);
-                    d.setLayout(new FlowLayout());
+	                    no.addActionListener(new ActionListener() {
+	                        public void actionPerformed(ActionEvent e) {
+	                            // Hide dialog
+	                            d.setVisible(false);
+	                        }
+	                    });
 
-                    // Create an OK button
-                    Button yes = new Button("YES");
-                    Button no = new Button("NO");
-                    yes.addActionListener(new ActionListener() {
-                        public void actionPerformed(ActionEvent e) {
-                            // Hide dialog
-                            d.setVisible(false);
-                            // System.out.println();
+	                    d.add(new Label("Are you sure you want to delete it?"));
+	                    d.add(yes);
+	                    d.add(no);
 
-                            if (!deleteFile.isDirectory()) {
-                                deleteFile.delete();
-                            } else {
-                                deleteDirectory(deleteFile);
-                            }
-
-                            filesPanel.removeAll();
-                            filesPanel.revalidate();
-                            openDirectory(lastPath);
-                        }
-                    });
-
-                    no.addActionListener(new ActionListener() {
-                        public void actionPerformed(ActionEvent e) {
-                            // Hide dialog
-                            d.setVisible(false);
-                        }
-                    });
-
-                    d.add(new Label("Are you sure you want to delete it?"));
-                    d.add(yes);
-                    d.add(no);
-
-                    // Show dialog
-                    d.pack();
-                    d.setVisible(true);
-                }
-            }
+	                    // Show dialog
+	                    d.pack();
+	                    d.setVisible(true);
+	                }
+	            }
+	        }
         }
     }
 
+    //Recursive function to delete everything in a directory.
     boolean deleteDirectory(File directoryToBeDeleted) {
         File[] allContents = directoryToBeDeleted.listFiles();
         if (allContents != null) {
@@ -1180,20 +1224,21 @@ public class gui extends javax.swing.JFrame {
     class FavouritesListener implements ActionListener {
 
         public void actionPerformed(ActionEvent actionEvent) {
-            System.out.println("Selected: Add To Favourites");
-            System.out.println(actionEvent.getActionCommand());
-
             try {
-                File file = new File(lastPath + "/" + actionEvent.getActionCommand());
-                if (!file.isDirectory()) {
-                    System.out.println("Not a directory!");
-                    // pop up menu
-                } else {
-                    String favouritePath = new String(lastPath + "/" + actionEvent.getActionCommand());
-                    if(findInXML(actionEvent.getActionCommand())){
-                        System.out.println(actionEvent.getActionCommand() + " is already in favourites!");
-                    }
-                    else{
+                File dir = new File(home + separator + ".java-file-browser");
+                if(!dir.exists()){
+                    dir.mkdir();
+                }
+                File prop = new File(xmlPath);
+                if(!prop.exists()){
+                    prop.createNewFile();
+                    xmlFileInit();
+                }
+
+                File file = new File(lastPath + separator + actionEvent.getActionCommand());
+                if (file.isDirectory()) {
+                    String favouritePath = new String(lastPath + separator + actionEvent.getActionCommand());
+                    if(!findInXML(actionEvent.getActionCommand())){
                         addToXMLFile(actionEvent.getActionCommand(), favouritePath);
                         favouritesInit(actionEvent.getActionCommand());
                         favouritesPanel.revalidate();
@@ -1205,9 +1250,10 @@ public class gui extends javax.swing.JFrame {
         }
     }
 
+    //Method to find if "name" is already in xml and therefore in favourites.
     public boolean findInXML(String name) {
         try {
-            File xmlFile = new File(home + "/properties.xml");
+            File xmlFile = new File(xmlPath);
             if (xmlFile.exists()) {
                 DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
                 DocumentBuilder dBuilder;
@@ -1235,29 +1281,26 @@ public class gui extends javax.swing.JFrame {
     class PropertiesListener implements ActionListener {
 
         public void actionPerformed(ActionEvent actionEvent) {
-            System.out.println("Selected: Properties");
-            System.out.println(actionEvent.getActionCommand());
-
             JFrame window = new JFrame();
             JDialog d = new JDialog(window, "Properties", true);
             d.setLayout(new GridLayout(4, 1));
 
             d.add(new Label("Name: " + actionEvent.getActionCommand()));
-            d.add(new Label("Path: " + lastPath + "/" + actionEvent.getActionCommand()));
-            d.add(new Label("Size: " + findSize(lastPath + "/" + actionEvent.getActionCommand())));
+            d.add(new Label("Path: " + lastPath + separator + actionEvent.getActionCommand()));
+            d.add(new Label("Size: " + findSize(lastPath + separator + actionEvent.getActionCommand())));
 
             JPanel p = new JPanel();
             p.setLayout(new FlowLayout());
-            JCheckBox read = new JCheckBox("Read", findStateRead(lastPath + "/" + actionEvent.getActionCommand()));
-            JCheckBox write = new JCheckBox("Write", findStateWrite(lastPath + "/" + actionEvent.getActionCommand()));
+            JCheckBox read = new JCheckBox("Read", findStateRead(lastPath + separator + actionEvent.getActionCommand()));
+            JCheckBox write = new JCheckBox("Write", findStateWrite(lastPath + separator + actionEvent.getActionCommand()));
             JCheckBox excecute = new JCheckBox("Excecute",
-                    findStateExcecute(lastPath + "/" + actionEvent.getActionCommand()));
+                    findStateExcecute(lastPath + separator + actionEvent.getActionCommand()));
 
-            File file = new File(lastPath + "/" + actionEvent.getActionCommand());
+            File file = new File(lastPath + separator + actionEvent.getActionCommand());
 
             try {
                 if (!System.getProperty("user.name")
-                        .equals(getFileOwner(lastPath + "/" + actionEvent.getActionCommand()))) {
+                        .equals(findName(getFileOwner(lastPath + separator + actionEvent.getActionCommand())))){
                     read.setEnabled(false);
                     write.setEnabled(false);
                     excecute.setEnabled(false);
@@ -1319,15 +1362,16 @@ public class gui extends javax.swing.JFrame {
         }
     }
 
+    // Method to find the icon for every directory/file.
     public void selectIcon(File file, JLabel label) {
 
         label.setVerticalTextPosition(JLabel.BOTTOM);
         label.setHorizontalTextPosition(JLabel.CENTER);
 
-        String path = new String(home + "/.icons" + "/icons");
+        String path = new String(iconsPath);
 
         if (file.isDirectory()) {
-            path = path + "/folder.png";
+            path = path + separator + "folder.png";
             label.setIcon(new ImageIcon(path));
         } else {
             String extension = "";
@@ -1335,35 +1379,48 @@ public class gui extends javax.swing.JFrame {
             if (i >= 0) {
                 extension = (file.getName()).substring(i + 1);
             }
-            path = path + "/" + extension + ".png";
+            path = path + separator + extension + ".png";
             File temp = new File(path);
             if (temp.exists()) {
                 label.setIcon(new ImageIcon(path));
             } else {
-                path = home + "/.icons" + "/icons" + "/question.png";
+                path = iconsPath + separator + "question.png";
                 label.setIcon(new ImageIcon(path));
             }
         }
     }
 
-    public void xmlFileInit(File file) {
+    //Method to initialize the XML file.
+    public void xmlFileInit() {
 
-        try (FileWriter fileWriter = new FileWriter(file);) {
-            StringBuilder content = new StringBuilder();
+        try {
+            File xmlFile = new File(xmlPath);
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+    
+            // root elements
+            Document doc = docBuilder.newDocument();
+            Element rootElement = doc.createElement("favourites");
+            doc.appendChild(rootElement);
 
-            content.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?");
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            DOMSource source = new DOMSource(doc);
+            StreamResult result = new StreamResult(xmlFile);
 
-            content.append("<favourites>");
+            transformer.transform(source, result);
 
-        } catch (IOException e) {
-            e.printStackTrace();
+        }
+        catch (Exception pce) {
+            pce.printStackTrace();
         }
     }
 
+    //Method to add a node in the XML file.
     public void addToXMLFile(String favName, String favPath) {
 
         try {
-            File xmlFile = new File(home + "/properties.xml");
+            File xmlFile = new File(xmlPath);
             DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
             Document document = documentBuilder.parse(xmlFile);
@@ -1381,7 +1438,6 @@ public class gui extends javax.swing.JFrame {
             type.appendChild(name);
 
             // append path.
-            // System.out.println(path.getText());
             Element pathDir = document.createElement("path");
             pathDir.appendChild(document.createTextNode(favPath));
             type.appendChild(pathDir);
@@ -1394,7 +1450,7 @@ public class gui extends javax.swing.JFrame {
 
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
             Transformer transformer = transformerFactory.newTransformer();
-            StreamResult result = new StreamResult(home + "/properties.xml");
+            StreamResult result = new StreamResult(xmlPath);
             transformer.transform(source, result);
 
         } catch (Exception e) {
@@ -1402,10 +1458,11 @@ public class gui extends javax.swing.JFrame {
         }
     }
 
+    //Method to read the XML file in order to initialize favourites panel.
     public void readXMLFile() {
 
         try {
-            File xmlFile = new File(home + "/properties.xml");
+            File xmlFile = new File(xmlPath);
             if (xmlFile.exists()) {
                 DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
                 DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -1420,14 +1477,7 @@ public class gui extends javax.swing.JFrame {
                     Node nNode = nList.item(temp);
 
                     if (nNode.getNodeType() == Node.ELEMENT_NODE) {
-
                         Element eElement = (Element) nNode;
-                        // System.out.println("Name : " +
-                        // eElement.getElementsByTagName("name").item(0).getTextContent());
-
-                        // System.out.println("Path : " +
-                        // eElement.getElementsByTagName("path").item(0).getTextContent());
-
                         favouritesInit(eElement.getElementsByTagName("name").item(0).getTextContent());
                     }
                 }
@@ -1437,10 +1487,11 @@ public class gui extends javax.swing.JFrame {
         }
     }
 
+    //Method to search for a name in the XML file and return its path.
     public String findFavouritePath(String favouriteName) throws Exception {
 
         String path = new String();
-        File xmlFile = new File(home + "/properties.xml");
+        File xmlFile = new File(xmlPath);
         if (xmlFile.exists()) {
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
@@ -1464,6 +1515,7 @@ public class gui extends javax.swing.JFrame {
         return path;
     }
 
+    //Method to initialize favourites panel after reading the XML file.
     public void favouritesInit(String name) {
 
         MouseListenerFav fav = new MouseListenerFav();
@@ -1520,23 +1572,18 @@ public class gui extends javax.swing.JFrame {
 
         @Override
         public void actionPerformed(ActionEvent event) {
-            System.out.println(event.getActionCommand());
-            // JButton button = new JButton(event.getActionCommand());
-
             try {
                 removeFromXMLFile(event.getActionCommand());
             } catch (Exception e) {
                 e.printStackTrace();
             }
-
-            
         }
-
     }
 
+    // Method to remove a node given the name from the XML file.
     public void removeFromXMLFile(String name) throws Exception {
         
-        File xmlFile = new File(home + "/properties.xml");
+        File xmlFile = new File(xmlPath);
         DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
         Document doc = dBuilder.parse(xmlFile);
@@ -1550,24 +1597,22 @@ public class gui extends javax.swing.JFrame {
                 Element eElement = (Element) nNode;
                 if(eElement.getElementsByTagName("name").item(0).getTextContent().equals(name)){
 
-                    System.out.println("name is = " + eElement.getElementsByTagName("name").item(0).getTextContent());
-
                     removeNode(eElement);
                     doc.normalize();
 
                     //Save the file.
                     DOMSource source = new DOMSource(doc);
-
                     TransformerFactory transformerFactory = TransformerFactory.newInstance();
                     Transformer transformer = transformerFactory.newTransformer();
-                    StreamResult result = new StreamResult(home + "/properties.xml");
+                    StreamResult result = new StreamResult(xmlPath);
                     transformer.transform(source, result);
 
                     favouritesPanel.removeAll();
                     favouritesPanel.revalidate();
-
+                    if(!homeRemoved){
+                        favHome();
+                    }
                     readXMLFile();
-
                     SwingUtilities.updateComponentTreeUI(gui.this);
                 }
             }
@@ -1578,16 +1623,6 @@ public class gui extends javax.swing.JFrame {
         Node parent = node.getParentNode();
         if ( parent != null ) parent.removeChild(node);
     }
-
-    public static final void prettyPrint(Document xml) throws Exception {
-        Transformer tf = TransformerFactory.newInstance().newTransformer();
-        tf.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
-        tf.setOutputProperty(OutputKeys.INDENT, "yes");
-        Writer out = new StringWriter();
-        tf.transform(new DOMSource(xml), new StreamResult(out));
-        System.out.println(out.toString());
-    }
-
 
     /**
      * This method is called from within the constructor to initialize the form.
@@ -1803,20 +1838,19 @@ public class gui extends javax.swing.JFrame {
         setBounds(0, 0, 643, 534);
     }// </editor-fold>                        
 
-    private void newWindowActionPerformed(java.awt.event.ActionEvent evt) {                                          
-        // TODO add your handling code here:
+    private void newWindowActionPerformed(java.awt.event.ActionEvent evt)     {                                          
+       
     }                                         
 
-    private void pasteActionPerformed(java.awt.event.ActionEvent evt) {                                      
-        // TODO add your handling code here:
+    private void pasteActionPerformed(java.awt.event.ActionEvent evt) 
+    { 
+
     }                                     
 
     private void searchTextActionPerformed(java.awt.event.ActionEvent evt) {                                           
-        // TODO add your handling code here:
+       
     }                                          
 
-    
-    
 
     /**
      * @param args the command line arguments
