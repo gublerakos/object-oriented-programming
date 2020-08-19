@@ -1,0 +1,24 @@
+graph {
+alpha -- betaweight = 7
+alpha -- lamdaweight = 6
+beta -- gammaweight = 8
+beta -- deltaweight = 4
+gamma -- epsilonweight = 9
+delta -- zetaweight = 8
+delta -- kappaweight = -4
+epsilon -- zetaweight = 2
+epsilon -- thetaweight = 8
+zeta -- thetaweight = 10
+theta -- iotaweight = -5
+theta -- sigmaweight = 1
+theta -- omegaweight = 10
+iota -- kappaweight = -3
+iota -- ypsilonweight = -1
+ypsilon -- omegaweight = -2
+sigma -- ypsilonweight = 2
+omega -- sigmaweight = 2
+omega -- epsilonweight = 7
+kappa -- zetaweight = 3
+lamda -- kappaweight = 10
+lamda -- betaweight = 5
+}
